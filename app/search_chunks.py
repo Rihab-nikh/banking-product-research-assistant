@@ -56,9 +56,6 @@ vector_store = PGVectorStore.from_params(
     user=os.getenv("DB_USER"),
     table_name="banking_chunks_llama",
     embed_dim=2048,
-
-    # Required by hosted PostgreSQL providers such as Neon.
-    sslmode=os.getenv("DB_SSLMODE", "prefer"),
 )
 
 
