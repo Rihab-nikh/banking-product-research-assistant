@@ -14,12 +14,12 @@ mcp = MCPServer(
 def get_connection():
     return psycopg.connect(
         host=os.getenv("DB_HOST"),
-        port=os.getenv("DB_PORT"),
+        port=os.getenv("DB_PORT", "5432"),
         dbname=os.getenv("DB_NAME"),
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASSWORD"),
+        sslmode=os.getenv("DB_SSLMODE", "prefer"),
     )
-
 
 @mcp.tool()
 def list_products() -> list[dict]:

@@ -3,14 +3,14 @@ import sys
 
 from dotenv import load_dotenv
 from openai import OpenAI
-from langchain.agents import create_agent
 from llama_index.core import VectorStoreIndex
 from llama_index.embeddings.nvidia import NVIDIAEmbedding
 from llama_index.vector_stores.postgres import PGVectorStore
 from langchain_core.tools import tool
 
+
 # --------------------------------------------------
-# 0. Windows UTF-8 output
+# 0. UTF-8 output
 # --------------------------------------------------
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -52,10 +52,13 @@ vector_store = PGVectorStore.from_params(
     database=os.getenv("DB_NAME"),
     host=os.getenv("DB_HOST"),
     password=os.getenv("DB_PASSWORD"),
-    port=os.getenv("DB_PORT"),
+    port=int(os.getenv("DB_PORT", "5432")),
     user=os.getenv("DB_USER"),
     table_name="banking_chunks_llama",
     embed_dim=2048,
+
+    # Required by hosted PostgreSQL providers such as Neon.
+    sslmode=os.getenv("DB_SSLMODE", "prefer"),
 )
 
 
@@ -70,7 +73,7 @@ index = VectorStoreIndex.from_vector_store(
 
 
 # --------------------------------------------------
-# 6. Create retriever
+# 6. Retriever
 # --------------------------------------------------
 
 retriever = index.as_retriever(
@@ -84,24 +87,12 @@ retriever = index.as_retriever(
 
 def ask_banking_assistant(question: str) -> str:
 
-    # ----------------------------------------------
-    # Retrieve relevant chunks
-    # ----------------------------------------------
-
     results = retriever.retrieve(question)
-
-    # ----------------------------------------------
-    # Build context
-    # ----------------------------------------------
 
     context = "\n\n".join(
         result.node.get_content()
         for result in results
     )
-
-    # ----------------------------------------------
-    # System instructions
-    # ----------------------------------------------
 
     system_prompt = """
 You are a banking product research assistant.
@@ -118,10 +109,6 @@ Rules:
 - Keep the answer concise and practical.
 """
 
-    # ----------------------------------------------
-    # RAG prompt
-    # ----------------------------------------------
-
     user_prompt = f"""
 QUESTION:
 {question}
@@ -131,10 +118,6 @@ BANKING DOCUMENT CONTEXT:
 
 Answer the question using only this context.
 """
-
-    # ----------------------------------------------
-    # Generate grounded answer
-    # ----------------------------------------------
 
     response = llm_client.chat.completions.create(
         model="nvidia/nemotron-3.5-lightning-30b-a3b",
@@ -155,11 +138,12 @@ Answer the question using only this context.
         },
     )
 
-    # ----------------------------------------------
-    # Return answer
-    # ----------------------------------------------
-
     return response.choices[0].message.content
+
+
+# --------------------------------------------------
+# 8. LangChain tool
+# --------------------------------------------------
 
 @tool
 def search_products(question: str) -> str:
@@ -171,9 +155,12 @@ def search_products(question: str) -> str:
     treasury products, foreign exchange risk, hedging,
     or product characteristics.
     """
+
     return ask_banking_assistant(question)
+
+
 # --------------------------------------------------
-# 8. Run directly for testing
+# 9. Direct test
 # --------------------------------------------------
 
 if __name__ == "__main__":
@@ -191,5 +178,4 @@ if __name__ == "__main__":
     print("\n" + "=" * 80)
     print("FINAL RAG ANSWER")
     print("=" * 80)
-
     print(answer)
